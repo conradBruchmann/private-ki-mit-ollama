@@ -1,0 +1,46 @@
+#!/usr/bin/env sh
+# Husky Commit-Message Hook
+# Kapitel 13: Integration in Dev-Workflows
+#
+# Prüft und verbessert Commit-Messages mit KI
+
+COMMIT_MSG_FILE=$1
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+
+# Conventional Commits Format prüfen
+# Format: type(scope): description
+PATTERN="^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .{1,72}$"
+
+if ! echo "$COMMIT_MSG" | head -1 | grep -qE "$PATTERN"; then
+  echo "⚠️  Commit-Message folgt nicht dem Conventional Commits Format"
+  echo "   Format: type(scope): description"
+  echo "   Types: feat, fix, docs, style, refactor, test, chore, perf, ci, build, revert"
+  echo ""
+
+  # Optional: KI-Verbesserung vorschlagen
+  if [ "$OLLAMA_AI_COMMIT" = "1" ]; then
+    echo "🤖 Generiere Vorschlag mit KI..."
+
+    # Diff für Kontext holen
+    DIFF=$(git diff --cached --stat)
+
+    # KI-Vorschlag generieren (vereinfacht)
+    SUGGESTED=$(npm run ai:commit-msg -- "$COMMIT_MSG" "$DIFF" 2>/dev/null)
+
+    if [ -n "$SUGGESTED" ]; then
+      echo "   Vorschlag: $SUGGESTED"
+      echo ""
+      read -p "   Vorschlag übernehmen? [y/N] " -n 1 -r
+      echo
+      if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "$SUGGESTED" > "$COMMIT_MSG_FILE"
+        echo "✅ Commit-Message aktualisiert"
+        exit 0
+      fi
+    fi
+  fi
+
+  echo "   Commit wird trotzdem fortgesetzt..."
+fi
+
+echo "✅ Commit-Message OK"

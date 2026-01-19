@@ -1,0 +1,57 @@
+{
+  // VS Code Settings für Ollama-basierte Code-Assistenz
+  // Kapitel 7: Code-Assistent mit Ollama
+  //
+  // Diese Einstellungen gehören in:
+  //   - Global: ~/.config/Code/User/settings.json
+  //   - Workspace: .vscode/settings.json
+
+  // Continue Extension Einstellungen
+  "continue.enableTabAutocomplete": true,
+  "continue.showInlineTip": false,
+  "continue.telemetryEnabled": false,
+
+  // Llama Coder Extension (Alternative)
+  "llama-coder.endpoint": "http://localhost:11434",
+  "llama-coder.model": "qwen2.5-coder:14b-instruct",
+  "llama-coder.temperature": 0.3,
+  "llama-coder.maxTokens": 2048,
+
+  // Twinny Extension (Autocomplete)
+  "twinny.apiProvider": "ollama",
+  "twinny.apiUrl": "http://localhost:11434",
+  "twinny.chatModelName": "qwen2.5-coder:14b-instruct",
+  "twinny.fimModelName": "qwen2.5-coder:7b-instruct",
+  "twinny.enableAutoComplete": true,
+  "twinny.autoCompleteDebounce": 300,
+  "twinny.contextLength": 4096,
+
+  // CodeGPT Extension
+  "codegpt.apiKey": "ollama",
+  "codegpt.model": "qwen2.5-coder:14b-instruct",
+  "codegpt.customModel.provider": "ollama",
+  "codegpt.customModel.url": "http://localhost:11434/v1",
+
+  // Editor Einstellungen für bessere Code-Assistenz
+  "editor.inlineSuggest.enabled": true,
+  "editor.suggestSelection": "first",
+  "editor.quickSuggestions": {
+    "other": true,
+    "comments": false,
+    "strings": false
+  },
+
+  // Terminal für CLI-Tool
+  "terminal.integrated.env.osx": {
+    "OLLAMA_HOST": "http://localhost:11434",
+    "CODE_MODEL": "qwen2.5-coder:14b-instruct"
+  },
+  "terminal.integrated.env.linux": {
+    "OLLAMA_HOST": "http://localhost:11434",
+    "CODE_MODEL": "qwen2.5-coder:14b-instruct"
+  },
+  "terminal.integrated.env.windows": {
+    "OLLAMA_HOST": "http://localhost:11434",
+    "CODE_MODEL": "qwen2.5-coder:14b-instruct"
+  }
+}

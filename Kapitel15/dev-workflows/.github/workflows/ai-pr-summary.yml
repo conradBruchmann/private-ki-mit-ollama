@@ -1,0 +1,93 @@
+# GitHub Actions: KI-generierte PR-Zusammenfassung
+# Kapitel 13: Integration in Dev-Workflows
+#
+# Generiert automatisch eine Zusammenfassung für Pull Requests
+
+name: AI PR Summary
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+    branches: [main, develop]
+
+jobs:
+  summarize:
+    name: PR Zusammenfassung
+    runs-on: self-hosted
+    if: github.event.pull_request.draft == false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check Ollama
+        id: check
+        run: |
+          curl -sf http://localhost:11434/api/tags > /dev/null && echo "ok=true" >> $GITHUB_OUTPUT || echo "ok=false" >> $GITHUB_OUTPUT
+
+      - name: Generate Summary
+        if: steps.check.outputs.ok == 'true'
+        id: summary
+        run: |
+          # Diff und Commit-Messages sammeln
+          DIFF=$(git diff origin/${{ github.base_ref }}...HEAD --stat)
+          COMMITS=$(git log origin/${{ github.base_ref }}...HEAD --oneline)
+
+          # Prompt für Ollama
+          PROMPT="Erstelle eine kurze, prägnante Zusammenfassung für diesen Pull Request.
+
+          Commits:
+          $COMMITS
+
+          Änderungen:
+          $DIFF
+
+          Antworte auf Deutsch mit:
+          1. Eine Zeile: Was macht dieser PR?
+          2. Bullet Points: Wichtigste Änderungen
+          3. Hinweise für Reviewer"
+
+          # Ollama aufrufen
+          RESPONSE=$(curl -s http://localhost:11434/api/generate \
+            -d "{\"model\": \"llama3.2\", \"prompt\": \"$PROMPT\", \"stream\": false}" \
+            | jq -r '.response')
+
+          echo "summary<<EOF" >> $GITHUB_OUTPUT
+          echo "$RESPONSE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Update PR Description
+        if: steps.summary.outputs.summary != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const summary = `${{ steps.summary.outputs.summary }}`;
+            const currentBody = context.payload.pull_request.body || '';
+
+            // Nur hinzufügen wenn noch keine KI-Zusammenfassung
+            if (!currentBody.includes('<!-- AI-SUMMARY -->')) {
+              const newBody = `${currentBody}
+
+            ---
+
+            <!-- AI-SUMMARY -->
+            ## 🤖 KI-Zusammenfassung
+
+            ${summary}
+
+            <sub>Automatisch generiert mit Ollama</sub>`;
+
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number,
+                body: newBody
+              });
+            }

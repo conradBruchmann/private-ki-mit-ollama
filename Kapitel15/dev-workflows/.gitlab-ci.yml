@@ -1,0 +1,183 @@
+# GitLab CI: KI-Integration
+# Kapitel 13: Integration in Dev-Workflows
+#
+# Voraussetzung: GitLab Runner mit Ollama (Tag: ollama)
+
+stages:
+  - lint
+  - test
+  - ai-review
+  - build
+
+variables:
+  OLLAMA_URL: "http://localhost:11434"
+  OLLAMA_MODEL: "qwen2.5-coder:14b"
+  NODE_VERSION: "20"
+
+# =============================================================================
+# Lint & Type-Check
+# =============================================================================
+
+lint:
+  stage: lint
+  image: node:${NODE_VERSION}-alpine
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - node_modules/
+  script:
+    - npm ci
+    - npm run lint
+    - npm run type-check
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# =============================================================================
+# Tests
+# =============================================================================
+
+test:
+  stage: test
+  image: node:${NODE_VERSION}-alpine
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - node_modules/
+  script:
+    - npm ci
+    - npm run test -- --coverage
+  coverage: '/All files[^|]*\|[^|]*\s+([\d\.]+)/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
+    paths:
+      - coverage/
+    expire_in: 7 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# =============================================================================
+# KI Code-Review (nur für Merge Requests)
+# =============================================================================
+
+ai-code-review:
+  stage: ai-review
+  tags:
+    - ollama  # Runner mit Ollama
+  variables:
+    GIT_DEPTH: 0
+  before_script:
+    # Ollama prüfen
+    - |
+      if ! curl -sf ${OLLAMA_URL}/api/tags > /dev/null; then
+        echo "Ollama nicht erreichbar - Review übersprungen"
+        exit 0
+      fi
+  script:
+    - npm ci
+
+    # Diff erstellen
+    - git fetch origin ${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}
+    - git diff origin/${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}...HEAD > mr-diff.patch
+
+    # KI-Review ausführen
+    - |
+      node scripts/ai-review.js \
+        --diff mr-diff.patch \
+        --output review-result.json
+
+    # Ergebnis als Kommentar posten
+    - |
+      if [ -f review-result.json ]; then
+        COMMENT=$(jq -r '.summary' review-result.json)
+        curl --request POST \
+          --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
+          --header "Content-Type: application/json" \
+          --data "{\"body\": \"## 🤖 KI Code-Review\n\n${COMMENT}\"}" \
+          "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests/${CI_MERGE_REQUEST_IID}/notes"
+      fi
+  artifacts:
+    paths:
+      - review-result.json
+    expire_in: 30 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+
+# =============================================================================
+# KI Commit-Message Check
+# =============================================================================
+
+ai-commit-check:
+  stage: ai-review
+  tags:
+    - ollama
+  script:
+    - |
+      # Letzte Commit-Message prüfen
+      COMMIT_MSG=$(git log -1 --pretty=%B)
+
+      # Conventional Commits Format prüfen
+      if ! echo "$COMMIT_MSG" | head -1 | grep -qE "^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .{1,72}$"; then
+        echo "⚠️ Commit-Message folgt nicht dem Conventional Commits Format"
+
+        # KI-Verbesserung vorschlagen
+        SUGGESTION=$(curl -s ${OLLAMA_URL}/api/generate \
+          -d "{\"model\": \"llama3.2\", \"prompt\": \"Verbessere diese Commit-Message zu Conventional Commits Format: ${COMMIT_MSG}\", \"stream\": false}" \
+          | jq -r '.response')
+
+        echo "Vorschlag: $SUGGESTION"
+      fi
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  allow_failure: true
+
+# =============================================================================
+# Build
+# =============================================================================
+
+build:
+  stage: build
+  image: node:${NODE_VERSION}-alpine
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - node_modules/
+  script:
+    - npm ci
+    - npm run build
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 7 days
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# =============================================================================
+# Release (nur auf main)
+# =============================================================================
+
+.release:
+  stage: build
+  image: node:${NODE_VERSION}-alpine
+  script:
+    - npm ci
+    - npm run build
+    - |
+      # KI-generierte Release Notes
+      NOTES=$(curl -s ${OLLAMA_URL}/api/generate \
+        -d "{\"model\": \"llama3.2\", \"prompt\": \"Erstelle Release Notes für Version ${CI_COMMIT_TAG} basierend auf: $(git log --oneline $(git describe --tags --abbrev=0 HEAD^)..HEAD)\", \"stream\": false}" \
+        | jq -r '.response')
+      echo "$NOTES" > RELEASE_NOTES.md
+  artifacts:
+    paths:
+      - dist/
+      - RELEASE_NOTES.md
+  rules:
+    - if: $CI_COMMIT_TAG

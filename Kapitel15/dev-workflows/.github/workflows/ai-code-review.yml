@@ -1,0 +1,137 @@
+# GitHub Actions: KI-gestützte Code-Review
+# Kapitel 13: Integration in Dev-Workflows
+#
+# Dieser Workflow führt bei Pull Requests eine automatische
+# Code-Review mit einem lokalen LLM durch.
+#
+# Voraussetzung: Self-hosted Runner mit Ollama
+
+name: AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main, develop]
+
+# Nur ein Review gleichzeitig pro PR
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ai-review:
+    name: KI Code-Review
+    runs-on: self-hosted  # Benötigt lokalen Runner mit Ollama!
+
+    # Nur für Code-Änderungen
+    if: |
+      github.event.pull_request.draft == false &&
+      contains(github.event.pull_request.labels.*.name, 'ai-review') ||
+      github.event.pull_request.additions > 50
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Vollständige History für Diff
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Check Ollama Availability
+        id: ollama-check
+        run: |
+          if curl -s http://localhost:11434/api/tags > /dev/null; then
+            echo "available=true" >> $GITHUB_OUTPUT
+          else
+            echo "available=false" >> $GITHUB_OUTPUT
+            echo "::warning::Ollama nicht erreichbar. KI-Review übersprungen."
+          fi
+
+      - name: Get Changed Files
+        id: changed-files
+        run: |
+          # Geänderte Dateien ermitteln
+          FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E '\.(ts|tsx|js|jsx)$' || true)
+          echo "files<<EOF" >> $GITHUB_OUTPUT
+          echo "$FILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          # Diff für Review
+          git diff origin/${{ github.base_ref }}...HEAD > /tmp/pr-diff.patch
+          echo "diff_file=/tmp/pr-diff.patch" >> $GITHUB_OUTPUT
+
+      - name: Run AI Code Review
+        if: steps.ollama-check.outputs.available == 'true' && steps.changed-files.outputs.files != ''
+        id: ai-review
+        env:
+          OLLAMA_URL: http://localhost:11434
+          OLLAMA_MODEL: qwen2.5-coder:14b
+        run: |
+          # Review-Skript ausführen
+          node scripts/ai-review.js \
+            --diff "${{ steps.changed-files.outputs.diff_file }}" \
+            --files "${{ steps.changed-files.outputs.files }}" \
+            --output /tmp/review-result.json
+
+          # Ergebnis für nächsten Step
+          echo "result<<EOF" >> $GITHUB_OUTPUT
+          cat /tmp/review-result.json >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post Review Comment
+        if: steps.ai-review.outputs.result != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const review = JSON.parse(`${{ steps.ai-review.outputs.result }}`);
+
+            // Hauptkommentar
+            const body = `## 🤖 KI Code-Review
+
+            **Modell:** ${review.model}
+            **Geprüfte Dateien:** ${review.filesReviewed}
+
+            ### Zusammenfassung
+            ${review.summary}
+
+            ### Gefundene Issues
+            ${review.issues.map(i => `- **${i.severity}** (${i.file}:${i.line}): ${i.message}`).join('\n') || 'Keine Issues gefunden ✅'}
+
+            ### Verbesserungsvorschläge
+            ${review.suggestions.map(s => `- ${s}`).join('\n') || 'Keine Vorschläge'}
+
+            ---
+            <sub>Generiert mit Ollama (${review.model}) • ${new Date().toISOString()}</sub>`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+
+            // Bei kritischen Issues: Review als "Changes requested"
+            if (review.issues.some(i => i.severity === 'critical')) {
+              await github.rest.pulls.createReview({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number,
+                event: 'REQUEST_CHANGES',
+                body: '🚨 Kritische Issues gefunden. Bitte beheben.'
+              });
+            }
+
+      - name: Upload Review Artifact
+        if: always() && steps.ai-review.outputs.result != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-review-result
+          path: /tmp/review-result.json
+          retention-days: 30

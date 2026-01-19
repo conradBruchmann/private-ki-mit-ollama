@@ -1,0 +1,178 @@
+# Kubernetes Network Policies für Ollama
+# Kapitel 15: Security, Datenschutz, Governance
+#
+# Diese Policies isolieren den Ollama-Service und erlauben nur
+# autorisierten Zugriff.
+#
+# Anwendung:
+#   kubectl apply -f network-policy.yaml
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ollama
+  labels:
+    name: ollama
+    # Pod Security Standards
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+# =============================================================================
+# Default: Deny All Ingress
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: ollama
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# =============================================================================
+# Default: Deny All Egress
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-egress
+  namespace: ollama
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+---
+# =============================================================================
+# Ollama: Erlaubter Ingress
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ollama-ingress
+  namespace: ollama
+spec:
+  podSelector:
+    matchLabels:
+      app: ollama
+  policyTypes:
+    - Ingress
+  ingress:
+    # Nur von Backend-Apps im gleichen Namespace
+    - from:
+        - podSelector:
+            matchLabels:
+              role: backend
+      ports:
+        - protocol: TCP
+          port: 11434
+
+    # Von Ingress Controller (Traefik/Nginx)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-system
+          podSelector:
+            matchLabels:
+              app: traefik
+      ports:
+        - protocol: TCP
+          port: 11434
+
+    # Von Monitoring (Prometheus)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 11434
+---
+# =============================================================================
+# Ollama: Erlaubter Egress (nur DNS)
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ollama-egress
+  namespace: ollama
+spec:
+  podSelector:
+    matchLabels:
+      app: ollama
+  policyTypes:
+    - Egress
+  egress:
+    # DNS erlauben
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# =============================================================================
+# Backend Apps: Zugriff auf Ollama
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-egress-ollama
+  namespace: ollama
+spec:
+  podSelector:
+    matchLabels:
+      role: backend
+  policyTypes:
+    - Egress
+  egress:
+    # Zu Ollama
+    - to:
+        - podSelector:
+            matchLabels:
+              app: ollama
+      ports:
+        - protocol: TCP
+          port: 11434
+
+    # DNS
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+---
+# =============================================================================
+# Backend Apps: Ingress von Ingress Controller
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-ingress
+  namespace: ollama
+spec:
+  podSelector:
+    matchLabels:
+      role: backend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-system
+      ports:
+        - protocol: TCP
+          port: 3000
+        - protocol: TCP
+          port: 3001

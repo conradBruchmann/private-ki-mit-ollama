@@ -1,0 +1,78 @@
+# Docker Compose: RAG-Frontend Stack mit GPU
+# Kapitel 10: RAG-Frontend & Zugriffskontrolle
+#
+# Voraussetzung: NVIDIA Container Toolkit installiert
+#
+# Verwendung:
+#   docker compose -f docker/docker-compose.gpu.yml up -d
+
+services:
+  backend:
+    build:
+      context: ../backend
+      dockerfile: ../docker/Dockerfile.backend
+    container_name: rag-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - JWT_SECRET=${JWT_SECRET:-super-secret-change-in-production}
+      - JWT_EXPIRES_IN=8h
+      - OLLAMA_URL=http://ollama:11434
+      - RAG_MODEL=llama3.2
+      - CORS_ORIGIN=http://localhost:3000
+    depends_on:
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: ../docker/Dockerfile.frontend
+      args:
+        - VITE_API_URL=http://localhost:3001
+    container_name: rag-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # Ollama mit GPU
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rag-ollama-gpu
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_NUM_PARALLEL=4
+      - OLLAMA_FLASH_ATTENTION=true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
+    name: rag_ollama_gpu_data

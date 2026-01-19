@@ -1,0 +1,117 @@
+# Prometheus Alerting Rules
+# Kapitel 14: Betrieb & Skalierung
+
+groups:
+  # ===========================================================================
+  # Ollama Alerts
+  # ===========================================================================
+  - name: ollama
+    interval: 30s
+    rules:
+      - alert: OllamaDown
+        expr: up{job="ollama"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Ollama Server nicht erreichbar"
+          description: "Ollama antwortet seit {{ $value }} Sekunden nicht."
+
+      - alert: OllamaHighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="ollama"}[5m])) > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Hohe Ollama Latenz"
+          description: "95th Percentile Latenz ist {{ $value }}s (>30s)"
+
+  # ===========================================================================
+  # System Alerts
+  # ===========================================================================
+  - name: system
+    interval: 30s
+    rules:
+      - alert: HighCPUUsage
+        expr: 100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Hohe CPU-Auslastung"
+          description: "CPU-Auslastung ist {{ $value }}% (>80%)"
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Hoher Speicherverbrauch"
+          description: "RAM-Auslastung ist {{ $value }}% (>85%)"
+
+      - alert: CriticalMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 95
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kritischer Speicherverbrauch"
+          description: "RAM-Auslastung ist {{ $value }}% (>95%)"
+
+      - alert: DiskSpaceLow
+        expr: (1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Wenig Festplattenspeicher"
+          description: "Disk-Auslastung ist {{ $value }}% (>85%)"
+
+  # ===========================================================================
+  # GPU Alerts (wenn nvidia-exporter läuft)
+  # ===========================================================================
+  - name: gpu
+    interval: 30s
+    rules:
+      - alert: GPUHighTemperature
+        expr: nvidia_gpu_temperature_celsius > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GPU Temperatur hoch"
+          description: "GPU Temperatur ist {{ $value }}°C (>80°C)"
+
+      - alert: GPUMemoryFull
+        expr: (nvidia_gpu_memory_used_bytes / nvidia_gpu_memory_total_bytes) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GPU Speicher fast voll"
+          description: "GPU Memory ist {{ $value }}% belegt (>90%)"
+
+  # ===========================================================================
+  # Container Alerts
+  # ===========================================================================
+  - name: containers
+    interval: 30s
+    rules:
+      - alert: ContainerRestarting
+        expr: increase(container_restart_count[1h]) > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container startet häufig neu"
+          description: "Container {{ $labels.name }} hat {{ $value }} Restarts in 1h"
+
+      - alert: ContainerOOMKilled
+        expr: container_oom_events_total > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Container OOM Killed"
+          description: "Container {{ $labels.name }} wurde wegen OOM beendet"

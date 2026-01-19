@@ -1,0 +1,71 @@
+# Docker Compose: Ollama + Open WebUI
+# Kapitel 3: Installation & Grundkonfiguration
+#
+# Enthält:
+#   - Ollama Server (mit GPU)
+#   - Open WebUI (Web-Interface)
+#
+# Verwendung:
+#   docker compose -f docker-compose.full.yml up -d
+#
+# Zugriff:
+#   - Ollama API: http://localhost:11434
+#   - Web UI: http://localhost:3000
+#
+
+services:
+  # Ollama Server
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_NUM_PARALLEL=4
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - ollama-network
+
+  # Open WebUI
+  webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    ports:
+      - "3000:8080"
+    volumes:
+      - webui_data:/app/backend/data
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - WEBUI_AUTH=false
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - ollama-network
+
+networks:
+  ollama-network:
+    driver: bridge
+
+volumes:
+  ollama_data:
+    name: ollama_full_data
+  webui_data:
+    name: webui_data

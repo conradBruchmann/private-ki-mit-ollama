@@ -1,0 +1,50 @@
+# Docker Compose für Ollama mit NVIDIA GPU
+# Kapitel 3: Installation & Grundkonfiguration
+#
+# Voraussetzung: NVIDIA Container Toolkit installiert
+#
+# Installation:
+#   distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+#   curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
+#   curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | \
+#     sudo tee /etc/apt/sources.list.d/nvidia-docker.list
+#   sudo apt update && sudo apt install -y nvidia-container-toolkit
+#   sudo systemctl restart docker
+#
+# Verwendung:
+#   docker compose -f docker-compose.gpu.yml up -d
+#
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-gpu
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_NUM_PARALLEL=4
+      # Flash Attention für bessere Performance
+      - OLLAMA_FLASH_ATTENTION=true
+    # GPU-Konfiguration
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  ollama_data:
+    name: ollama_gpu_data

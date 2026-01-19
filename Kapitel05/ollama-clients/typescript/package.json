@@ -1,0 +1,25 @@
+{
+  "name": "ollama-typescript-client",
+  "version": "1.0.0",
+  "description": "TypeScript Client-Beispiele für Ollama API",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "demo:chat": "tsx src/demos/chat.ts",
+    "demo:stream": "tsx src/demos/streaming.ts",
+    "demo:service": "tsx src/demos/service-demo.ts",
+    "demo:openai": "tsx src/demos/openai-compat.ts",
+    "demo:embeddings": "tsx src/demos/embeddings.ts"
+  },
+  "dependencies": {
+    "ollama": "^0.5.11",
+    "openai": "^4.77.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

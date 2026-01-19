@@ -1,0 +1,63 @@
+# Ollama systemd Service Unit mit GPU Support
+# Kapitel 14: Betrieb & Skalierung
+#
+# Für NVIDIA GPU Systeme
+
+[Unit]
+Description=Ollama LLM Server (GPU)
+Documentation=https://ollama.com
+After=network-online.target nvidia-persistenced.service
+Wants=network-online.target
+Requires=nvidia-persistenced.service
+
+[Service]
+Type=simple
+User=ollama
+Group=ollama
+
+# GPU Umgebung
+Environment="OLLAMA_HOST=0.0.0.0"
+Environment="OLLAMA_ORIGINS=*"
+Environment="OLLAMA_KEEP_ALIVE=24h"
+Environment="OLLAMA_NUM_PARALLEL=4"
+Environment="OLLAMA_MAX_LOADED_MODELS=3"
+Environment="OLLAMA_FLASH_ATTENTION=true"
+
+# NVIDIA spezifisch
+Environment="CUDA_VISIBLE_DEVICES=0"
+Environment="NVIDIA_VISIBLE_DEVICES=all"
+Environment="NVIDIA_DRIVER_CAPABILITIES=compute,utility"
+
+WorkingDirectory=/var/lib/ollama
+ExecStart=/usr/local/bin/ollama serve
+
+Restart=always
+RestartSec=10
+
+# Höhere Limits für GPU
+LimitNOFILE=1048576
+LimitNPROC=1048576
+LimitMEMLOCK=infinity
+
+# Security (weniger restriktiv für GPU-Zugriff)
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+ReadWritePaths=/var/lib/ollama
+ReadWritePaths=/tmp
+
+# GPU Device Zugriff
+DevicePolicy=closed
+DeviceAllow=/dev/nvidia0 rw
+DeviceAllow=/dev/nvidiactl rw
+DeviceAllow=/dev/nvidia-uvm rw
+DeviceAllow=/dev/nvidia-modeset rw
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ollama
+
+[Install]
+WantedBy=multi-user.target

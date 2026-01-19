@@ -1,0 +1,34 @@
+{
+  "name": "rag-pipeline",
+  "version": "1.0.0",
+  "description": "RAG Document Pipeline - Beispielcode aus Kapitel 9",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "ingest": "tsx src/cli.ts ingest",
+    "query": "tsx src/cli.ts query",
+    "server": "tsx src/server.ts"
+  },
+  "dependencies": {
+    "pdf-parse": "^1.1.1",
+    "mammoth": "^1.6.0",
+    "gray-matter": "^4.0.3",
+    "better-sqlite3": "^9.4.3",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "commander": "^12.0.0",
+    "glob": "^10.3.10",
+    "p-limit": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "typescript": "^5.3.3",
+    "tsx": "^4.7.0"
+  }
+}

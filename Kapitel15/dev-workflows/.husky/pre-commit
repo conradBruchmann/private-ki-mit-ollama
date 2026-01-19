@@ -1,0 +1,32 @@
+#!/usr/bin/env sh
+# Husky Pre-Commit Hook
+# Kapitel 13: Integration in Dev-Workflows
+#
+# Dieser Hook wird vor jedem Commit ausgeführt und prüft:
+# 1. Linting (ESLint)
+# 2. Type-Checking (TypeScript)
+# 3. KI-basierte Code-Review (optional)
+
+# Lint-Staged ausführen (prüft nur geänderte Dateien)
+npx lint-staged
+
+# Optional: KI-Review für größere Änderungen
+# Nur ausführen wenn mehr als 50 Zeilen geändert wurden
+CHANGED_LINES=$(git diff --cached --numstat | awk '{sum += $1 + $2} END {print sum}')
+
+if [ "$CHANGED_LINES" -gt 50 ]; then
+  echo "📝 Größere Änderung erkannt ($CHANGED_LINES Zeilen). Führe KI-Review durch..."
+
+  # KI-Review nur wenn OLLAMA_AI_REVIEW=1 gesetzt ist
+  if [ "$OLLAMA_AI_REVIEW" = "1" ]; then
+    npm run ai:pre-commit
+
+    if [ $? -ne 0 ]; then
+      echo "❌ KI-Review hat Probleme gefunden. Commit abgebrochen."
+      echo "   Setze SKIP_AI_REVIEW=1 um zu überspringen."
+      exit 1
+    fi
+  fi
+fi
+
+echo "✅ Pre-Commit Checks bestanden"

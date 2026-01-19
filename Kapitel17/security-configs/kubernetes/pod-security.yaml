@@ -1,0 +1,138 @@
+# Kubernetes Pod Security für Ollama
+# Kapitel 15: Security, Datenschutz, Governance
+#
+# Security Context und Resource Limits für Ollama Pods
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ollama
+  namespace: ollama
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: ollama
+  labels:
+    app: ollama
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+      annotations:
+        # Prometheus Scraping
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "11434"
+    spec:
+      serviceAccountName: ollama
+      automountServiceAccountToken: false
+
+      # Security Context (Pod-Level)
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: ollama
+          image: ollama/ollama:latest
+          imagePullPolicy: Always
+
+          # Container Security Context
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # Ollama braucht Schreibzugriff
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+
+          ports:
+            - containerPort: 11434
+              protocol: TCP
+
+          env:
+            - name: OLLAMA_HOST
+              value: "0.0.0.0"
+            - name: OLLAMA_KEEP_ALIVE
+              value: "24h"
+            - name: OLLAMA_NUM_PARALLEL
+              value: "2"
+
+          # Resource Limits
+          resources:
+            requests:
+              memory: "4Gi"
+              cpu: "2"
+            limits:
+              memory: "16Gi"
+              cpu: "8"
+              # Für GPU:
+              # nvidia.com/gpu: "1"
+
+          # Probes
+          livenessProbe:
+            httpGet:
+              path: /api/tags
+              port: 11434
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /api/tags
+              port: 11434
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          # Volume Mounts
+          volumeMounts:
+            - name: ollama-data
+              mountPath: /root/.ollama
+
+      volumes:
+        - name: ollama-data
+          persistentVolumeClaim:
+            claimName: ollama-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-pvc
+  namespace: ollama
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: standard
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+  namespace: ollama
+spec:
+  selector:
+    app: ollama
+  ports:
+    - port: 11434
+      targetPort: 11434
+      protocol: TCP
+  type: ClusterIP

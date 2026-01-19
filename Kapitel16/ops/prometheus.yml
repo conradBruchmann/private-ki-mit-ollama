@@ -1,0 +1,109 @@
+# Prometheus Konfiguration
+# Kapitel 14: Betrieb & Skalierung
+#
+# Scrape-Config für Ollama Monitoring
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+  # Labels für alle Metriken
+  external_labels:
+    environment: 'production'
+    cluster: 'ollama-local'
+
+# Alert Manager Konfiguration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+          # - alertmanager:9093
+
+# Alerting Rules laden
+rule_files:
+  - "alerts.yml"
+
+# =============================================================================
+# Scrape Configs
+# =============================================================================
+
+scrape_configs:
+  # ---------------------------------------------------------------------------
+  # Prometheus selbst
+  # ---------------------------------------------------------------------------
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    metrics_path: /metrics
+
+  # ---------------------------------------------------------------------------
+  # Ollama Metrics
+  # ---------------------------------------------------------------------------
+  - job_name: 'ollama'
+    static_configs:
+      - targets: ['ollama:11434']
+    metrics_path: /metrics
+    scrape_interval: 30s
+    # Ollama hat (noch) keine eigenen Metrics
+    # Wir nutzen daher den Health-Endpoint
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'ollama'
+
+  # ---------------------------------------------------------------------------
+  # Traefik Metrics
+  # ---------------------------------------------------------------------------
+  - job_name: 'traefik'
+    static_configs:
+      - targets: ['traefik:8080']
+    metrics_path: /metrics
+
+  # ---------------------------------------------------------------------------
+  # Node Exporter (System)
+  # ---------------------------------------------------------------------------
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '([^:]+):.*'
+        replacement: '${1}'
+
+  # ---------------------------------------------------------------------------
+  # NVIDIA GPU (optional)
+  # ---------------------------------------------------------------------------
+  - job_name: 'nvidia-gpu'
+    static_configs:
+      - targets: ['nvidia-exporter:9835']
+    scrape_interval: 30s
+
+  # ---------------------------------------------------------------------------
+  # Docker Containers (via cAdvisor)
+  # ---------------------------------------------------------------------------
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    scrape_interval: 30s
+
+  # ---------------------------------------------------------------------------
+  # Custom Application Metrics
+  # ---------------------------------------------------------------------------
+  - job_name: 'application'
+    static_configs:
+      - targets:
+          - 'app-backend:3001'
+          - 'app-frontend:3000'
+    metrics_path: /metrics
+    scrape_interval: 30s
+    # Nur wenn die Apps Metrics bereitstellen
+
+# =============================================================================
+# Remote Write (optional für Langzeitspeicherung)
+# =============================================================================
+# remote_write:
+#   - url: "https://prometheus-prod.example.com/api/v1/write"
+#     basic_auth:
+#       username: "prometheus"
+#       password: "${PROMETHEUS_REMOTE_PASSWORD}"

@@ -1,0 +1,99 @@
+# Promtail Konfiguration
+# Kapitel 14: Betrieb & Skalierung
+#
+# Sammelt Logs von Docker Containern und sendet sie an Loki
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # ===========================================================================
+  # Docker Container Logs
+  # ===========================================================================
+  - job_name: containers
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: docker
+          __path__: /var/lib/docker/containers/*/*log
+
+    pipeline_stages:
+      # Docker JSON Log Format parsen
+      - json:
+          expressions:
+            stream: stream
+            log: log
+            time: time
+            attrs: attrs
+
+      # Container-Name aus Pfad extrahieren
+      - regex:
+          source: filename
+          expression: '/var/lib/docker/containers/(?P<container_id>[a-z0-9]+)/'
+
+      # Labels setzen
+      - labels:
+          stream:
+          container_id:
+
+      # Timestamp setzen
+      - timestamp:
+          source: time
+          format: RFC3339Nano
+
+      # Log-Zeile als Output
+      - output:
+          source: log
+
+  # ===========================================================================
+  # Ollama Logs (wenn nicht in Docker)
+  # ===========================================================================
+  - job_name: ollama
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: ollama
+          __path__: /var/log/ollama/*.log
+
+    pipeline_stages:
+      - multiline:
+          firstline: '^\d{4}-\d{2}-\d{2}'
+          max_wait_time: 3s
+
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d+Z)\s+(?P<level>\w+)\s+(?P<message>.*)$'
+
+      - labels:
+          level:
+
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+
+  # ===========================================================================
+  # System Logs
+  # ===========================================================================
+  - job_name: system
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: system
+          __path__: /var/log/syslog
+
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\w+\s+\d+\s+\d+:\d+:\d+)\s+(?P<host>\S+)\s+(?P<service>\S+):\s+(?P<message>.*)$'
+
+      - labels:
+          host:
+          service:

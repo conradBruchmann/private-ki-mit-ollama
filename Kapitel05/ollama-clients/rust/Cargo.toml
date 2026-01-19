@@ -1,0 +1,30 @@
+[package]
+name = "ollama-rust-client"
+version = "0.1.0"
+edition = "2021"
+description = "Rust Client-Beispiele für Ollama API"
+authors = ["Kapitel 5: API-Zugriff und Integration"]
+
+[[bin]]
+name = "ollama-client"
+path = "src/main.rs"
+
+[[bin]]
+name = "chat-demo"
+path = "src/bin/chat_demo.rs"
+
+[[bin]]
+name = "streaming-demo"
+path = "src/bin/streaming_demo.rs"
+
+[[bin]]
+name = "embeddings-demo"
+path = "src/bin/embeddings_demo.rs"
+
+[dependencies]
+reqwest = { version = "0.12", features = ["json", "stream"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+futures = "0.3"
+anyhow = "1.0"

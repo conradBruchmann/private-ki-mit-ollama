@@ -1,0 +1,73 @@
+# Ollama systemd Service Unit
+# Kapitel 14: Betrieb & Skalierung
+#
+# Installation:
+#   sudo cp ollama.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable ollama
+#   sudo systemctl start ollama
+#
+# Logs:
+#   journalctl -u ollama -f
+
+[Unit]
+Description=Ollama LLM Server
+Documentation=https://ollama.com
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ollama
+Group=ollama
+
+# Umgebungsvariablen
+Environment="OLLAMA_HOST=0.0.0.0"
+Environment="OLLAMA_ORIGINS=*"
+Environment="OLLAMA_KEEP_ALIVE=24h"
+Environment="OLLAMA_NUM_PARALLEL=2"
+Environment="OLLAMA_MAX_LOADED_MODELS=2"
+
+# Für GPU-Systeme (NVIDIA)
+# Environment="CUDA_VISIBLE_DEVICES=0"
+# Environment="OLLAMA_FLASH_ATTENTION=true"
+
+# Arbeitsverzeichnis
+WorkingDirectory=/var/lib/ollama
+
+# Start-Kommando
+ExecStart=/usr/local/bin/ollama serve
+
+# Restart bei Fehler
+Restart=always
+RestartSec=10
+
+# Resource Limits
+LimitNOFILE=65535
+LimitNPROC=65535
+LimitMEMLOCK=infinity
+
+# Memory Limits (anpassen je nach System)
+MemoryMax=16G
+MemoryHigh=14G
+
+# Security Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+# Schreibzugriff nur auf Datenverzeichnis
+ReadWritePaths=/var/lib/ollama
+ReadWritePaths=/tmp
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ollama
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,35 @@
+# Docker Compose für Ollama
+# Kapitel 3: Installation & Grundkonfiguration
+#
+# Verwendung:
+#   docker compose up -d
+#   docker compose logs -f ollama
+#
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      # Auf allen Interfaces lauschen
+      - OLLAMA_HOST=0.0.0.0
+      # Modell länger im RAM halten
+      - OLLAMA_KEEP_ALIVE=24h
+      # Parallele Requests
+      - OLLAMA_NUM_PARALLEL=2
+    restart: unless-stopped
+    # Health Check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  ollama_data:
+    name: ollama_data

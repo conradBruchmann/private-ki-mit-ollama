@@ -1,0 +1,58 @@
+# Custom Ollama Docker Image
+# Kapitel 3: Installation & Grundkonfiguration
+#
+# Enthält vorinstallierte Modelle
+#
+# Build:
+#   docker build -f Dockerfile.custom -t ollama-custom .
+#
+# Run:
+#   docker run -d -p 11434:11434 --gpus all ollama-custom
+#
+
+FROM ollama/ollama:latest
+
+# Environment
+ENV OLLAMA_HOST=0.0.0.0
+ENV OLLAMA_KEEP_ALIVE=24h
+
+# Startup-Script das Modelle lädt
+COPY <<'EOF' /entrypoint.sh
+#!/bin/bash
+set -e
+
+# Ollama im Hintergrund starten
+ollama serve &
+OLLAMA_PID=$!
+
+# Warten bis Server bereit
+echo "Warte auf Ollama Server..."
+while ! curl -s http://localhost:11434/api/tags > /dev/null 2>&1; do
+    sleep 1
+done
+echo "Server bereit!"
+
+# Standard-Modelle laden (falls nicht vorhanden)
+MODELS="${PRELOAD_MODELS:-phi3}"
+for MODEL in $MODELS; do
+    echo "Prüfe Modell: $MODEL"
+    if ! ollama list | grep -q "$MODEL"; then
+        echo "Lade Modell: $MODEL"
+        ollama pull $MODEL
+    else
+        echo "Modell bereits vorhanden: $MODEL"
+    fi
+done
+
+# Auf Ollama-Prozess warten
+wait $OLLAMA_PID
+EOF
+
+RUN chmod +x /entrypoint.sh
+
+# Default: phi3 vorladen
+ENV PRELOAD_MODELS="phi3"
+
+EXPOSE 11434
+
+ENTRYPOINT ["/entrypoint.sh"]

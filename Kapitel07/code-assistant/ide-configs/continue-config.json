@@ -1,0 +1,92 @@
+{
+  "$schema": "https://continue.dev/config-schema.json",
+  "models": [
+    {
+      "title": "Qwen Coder 32B (Local)",
+      "provider": "ollama",
+      "model": "qwen2.5-coder:32b-instruct",
+      "apiBase": "http://localhost:11434",
+      "contextLength": 32768
+    },
+    {
+      "title": "Qwen Coder 14B (Local)",
+      "provider": "ollama",
+      "model": "qwen2.5-coder:14b-instruct",
+      "apiBase": "http://localhost:11434",
+      "contextLength": 32768
+    },
+    {
+      "title": "DeepSeek Coder V2 (Local)",
+      "provider": "ollama",
+      "model": "deepseek-coder-v2:16b",
+      "apiBase": "http://localhost:11434",
+      "contextLength": 16384
+    }
+  ],
+  "tabAutocompleteModel": {
+    "title": "Qwen Coder 7B (Autocomplete)",
+    "provider": "ollama",
+    "model": "qwen2.5-coder:7b-instruct",
+    "apiBase": "http://localhost:11434"
+  },
+  "embeddingsProvider": {
+    "provider": "ollama",
+    "model": "nomic-embed-text",
+    "apiBase": "http://localhost:11434"
+  },
+  "customCommands": [
+    {
+      "name": "explain",
+      "prompt": "Erkläre den folgenden Code detailliert:\n\n{{{ input }}}\n\nBitte erklären Sie:\n1. Was der Code tut\n2. Wie er funktioniert\n3. Mögliche Verbesserungen",
+      "description": "Code erklären (Deutsch)"
+    },
+    {
+      "name": "test",
+      "prompt": "Schreibe Unit-Tests für den folgenden Code:\n\n{{{ input }}}\n\nVerwende das passende Test-Framework für die Sprache.",
+      "description": "Tests generieren"
+    },
+    {
+      "name": "refactor",
+      "prompt": "Refaktoriere den folgenden Code für bessere Lesbarkeit und Wartbarkeit:\n\n{{{ input }}}\n\nErkläre die Änderungen.",
+      "description": "Code refaktorieren"
+    },
+    {
+      "name": "document",
+      "prompt": "Füge Dokumentation zum folgenden Code hinzu (JSDoc/TSDoc/Docstrings):\n\n{{{ input }}}",
+      "description": "Code dokumentieren"
+    }
+  ],
+  "slashCommands": [
+    {
+      "name": "share",
+      "description": "Export code to clipboard"
+    },
+    {
+      "name": "cmd",
+      "description": "Generate terminal command"
+    }
+  ],
+  "contextProviders": [
+    {
+      "name": "code",
+      "params": {}
+    },
+    {
+      "name": "docs",
+      "params": {}
+    },
+    {
+      "name": "diff",
+      "params": {}
+    },
+    {
+      "name": "terminal",
+      "params": {}
+    },
+    {
+      "name": "codebase",
+      "params": {}
+    }
+  ],
+  "allowAnonymousTelemetry": false
+}

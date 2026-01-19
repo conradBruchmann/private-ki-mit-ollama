@@ -1,0 +1,15 @@
+{
+  "name": "tco-calculator",
+  "version": "1.0.0",
+  "description": "TCO-Rechner: Lokal vs. Cloud - Kapitel 16",
+  "type": "module",
+  "scripts": {
+    "start": "npx tsx tco-calculator.ts",
+    "calc": "npx tsx tco-calculator.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}

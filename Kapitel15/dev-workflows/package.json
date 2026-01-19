@@ -1,0 +1,33 @@
+{
+  "name": "dev-workflows",
+  "version": "1.0.0",
+  "description": "Dev-Workflow Integration mit lokalen LLMs - Kapitel 13",
+  "type": "module",
+  "scripts": {
+    "prepare": "husky",
+    "lint": "eslint src/**/*.ts",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "ai:review": "tsx scripts/ai-review.ts",
+    "ai:commit-msg": "tsx scripts/ai-commit-msg.ts",
+    "ai:pre-commit": "tsx scripts/ai-pre-commit.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "eslint": "^8.56.0",
+    "husky": "^9.0.6",
+    "lint-staged": "^15.2.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.1"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "npm run ai:pre-commit --"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
+  }
+}
